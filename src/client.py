@@ -15,6 +15,15 @@ class Agent(Base):
 
     def execute(self):
         server_info = PluginManager().exec_plugin()
+        # 固定唯一标识
+        hostname = server_info["basic"]["data"]["hostname"]
+        certname = open(settings.CERT_PATH, "r", encoding="utf-8").read().strip()
+        if not certname:
+            with open(settings.CERT_PATH, "w", encoding="utf-8") as f:
+                f.write(hostname)
+        else:
+            server_info["basic"]["data"]["hostname"] = certname
+
         self.post_asset(server_info)
 
 
@@ -27,8 +36,13 @@ class SSHSALT(Base):
             return
         return result["data"]
 
+    def run(self, host):
+        server_info = PluginManager(host).exec_plugin()
+        self.post_asset(server_info)
+
     def execute(self):
+        from concurrent.futures import ThreadPoolExecutor
         host_list = self.get_host()
+        pool = ThreadPoolExecutor(10)
         for host in host_list:
-            server_info = PluginManager(host).exec_plugin()
-            self.post_asset(server_info)
+            pool.submit(self.run, host)
